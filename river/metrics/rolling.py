@@ -1,11 +1,11 @@
 import collections
 
-from . import base, report
+from river import metrics
 
 __all__ = ["Rolling"]
 
 
-class Rolling(base.WrapperMetric):
+class Rolling(metrics.base.WrapperMetric):
     """Wrapper for computing metrics over a window.
 
     This wrapper metric allows you to apply a metric over a window of observations. Under the hood,
@@ -42,7 +42,7 @@ class Rolling(base.WrapperMetric):
 
     """
 
-    def __init__(self, metric: base.Metric, window_size: int):
+    def __init__(self, metric: metrics.base.Metric, window_size: int):
         self.window = collections.deque(maxlen=window_size)
         self._metric = metric
 
@@ -58,14 +58,7 @@ class Rolling(base.WrapperMetric):
         if len(self.window) == self.window_size:
             self.metric.revert(*self.window[0])
         self.metric.update(y_true, y_pred, sample_weight)
-        try:
-            # For classification metrics that require additional information
-            self.window.append(
-                (y_true, y_pred, sample_weight, self.metric.sample_correction)
-            )
-        except AttributeError:
-            # Default case
-            self.window.append((y_true, y_pred, sample_weight))
+        self.window.append((y_true, y_pred, sample_weight))
         return self
 
     def revert(self, y_true, y_pred, sample_weight=1.0):
@@ -73,6 +66,6 @@ class Rolling(base.WrapperMetric):
         return self
 
     def __repr__(self):
-        if isinstance(self.metric, report.ClassificationReport):
+        if isinstance(self.metric, metrics.ClassificationReport):
             return self.metric.__repr__()
         return f"{str(self.metric)}\t(rolling {self.window_size})"

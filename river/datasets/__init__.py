@@ -6,6 +6,7 @@ the data in a stream fashion. All datasets have fixed size. Please refer to `riv
 are interested in infinite synthetic data generators.
 
 """
+from . import base
 from .airline_passengers import AirlinePassengers
 from .bananas import Bananas
 from .bikes import Bikes
@@ -28,10 +29,12 @@ from .solar_flare import SolarFlare
 from .taxis import Taxis
 from .trec07 import TREC07
 from .trump_approval import TrumpApproval
+from .water_flow import WaterFlow
 
 __all__ = [
     "AirlinePassengers",
     "Bananas",
+    "base",
     "Bikes",
     "ChickWeights",
     "CreditCard",
@@ -52,4 +55,5 @@ __all__ = [
     "Taxis",
     "TREC07",
     "TrumpApproval",
+    "WaterFlow",
 ]

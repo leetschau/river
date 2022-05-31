@@ -11,7 +11,7 @@ __all__ = ["progressive_val_score"]
 def _progressive_validation(
     dataset: base.typing.Dataset,
     model,
-    metric: metrics.Metric,
+    metric: metrics.base.Metric,
     checkpoints: typing.Iterator[int],
     moment: typing.Union[str, typing.Callable] = None,
     delay: typing.Union[str, int, dt.timedelta, typing.Callable] = None,
@@ -44,24 +44,28 @@ def _progressive_validation(
 
         kwargs = kwargs[0] if kwargs else {}
 
-        # Question
+        # Case 1: no ground truth, just make a prediction
         if y is None:
             preds[i] = pred_func(x=x, **kwargs)
             continue
 
-        # Answer
+        # Case 2: there's a ground truth, model and metric can be updated
         y_pred = preds.pop(i)
+
+        # Update the metric
         if y_pred != {} and y_pred is not None:
             metric.update(y_true=y, y_pred=y_pred)
+
+        # Update the model
         if model._supervised:
             model.learn_one(x=x, y=y, **kwargs)
         else:
             model.learn_one(x=x, **kwargs)
 
-        # Update the answer counter
+        # Yield current results
         n_total_answers += 1
         if n_total_answers == next_checkpoint:
-            if isinstance(metric, metrics.Metrics):
+            if isinstance(metric, metrics.base.Metrics):
                 results = {m.__class__.__name__: m for m in metric}
             else:
                 results = {metric.__class__.__name__: metric}
@@ -78,13 +82,13 @@ def _progressive_validation(
 def iter_progressive_val_score(
     dataset: base.typing.Dataset,
     model,
-    metric: metrics.Metric,
+    metric: metrics.base.Metric,
     moment: typing.Union[str, typing.Callable] = None,
     delay: typing.Union[str, int, dt.timedelta, typing.Callable] = None,
     step=1,
     measure_time=False,
     measure_memory=False,
-) -> metrics.Metric:
+) -> metrics.base.Metric:
     """Evaluates the performance of a model on a streaming dataset and yields results.
 
     This does exactly the same as `evaluate.progressive_val_score`. The only difference is that
@@ -177,14 +181,14 @@ def iter_progressive_val_score(
 def progressive_val_score(
     dataset: base.typing.Dataset,
     model,
-    metric: metrics.Metric,
+    metric: metrics.base.Metric,
     moment: typing.Union[str, typing.Callable] = None,
     delay: typing.Union[str, int, dt.timedelta, typing.Callable] = None,
     print_every=0,
     show_time=False,
     show_memory=False,
     **print_kwargs,
-) -> metrics.Metric:
+) -> metrics.base.Metric:
     """Evaluates the performance of a model on a streaming dataset.
 
     This method is the canonical way to evaluate a model's performance. When used correctly, it

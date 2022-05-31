@@ -28,10 +28,10 @@ LONG_DESCRIPTION_CONTENT_TYPE = "text/markdown"
 URL = "https://github.com/online-ml/river"
 EMAIL = "maxhalford25@gmail.com"
 AUTHOR = "Max Halford"
-REQUIRES_PYTHON = ">=3.7.0"
+REQUIRES_PYTHON = ">=3.8.0"
 
 # Package requirements.
-base_packages = ["numpy>=1.20.0", "scipy>=1.4.1", "pandas>=1.0.1"]
+base_packages = ["numpy>=1.22", "scipy>=1.5", "pandas>=1.3"]
 
 compat_packages = base_packages + [
     "scikit-learn",
@@ -58,7 +58,7 @@ docs_packages = dev_packages + [
     "flask",
     "ipykernel",
     "jupyter-client",
-    "mike==0.5.3",
+    "mike",
     "mkdocs",
     "mkdocs-awesome-pages-plugin",
     "mkdocs-material",
@@ -105,9 +105,9 @@ setuptools.setup(
         "License :: OSI Approved :: BSD License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
     ],
@@ -126,5 +126,5 @@ setuptools.setup(
             "binding": True,
             "embedsignature": True,
         },
-    )
+    ),
 )

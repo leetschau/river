@@ -2,13 +2,10 @@ import typing
 
 import pandas as pd
 
-from river import optim
-from river.linear_model.glm import GLM
-
-from .base import AnomalyDetector
+from river import anomaly, linear_model, optim
 
 
-class OneClassSVM(GLM, AnomalyDetector):
+class OneClassSVM(linear_model.base.GLM, anomaly.base.AnomalyDetector):
     """One-class SVM for anomaly detection.
 
     This is a stochastic implementation of the one-class SVM algorithm, and will not exactly match
@@ -41,7 +38,7 @@ class OneClassSVM(GLM, AnomalyDetector):
     >>> from river import metrics
     >>> from river import preprocessing
 
-    >>> model = anomaly.QuantileThresholder(
+    >>> model = anomaly.QuantileFilter(
     ...     anomaly.OneClassSVM(nu=0.2),
     ...     q=0.995
     ... )
@@ -50,21 +47,22 @@ class OneClassSVM(GLM, AnomalyDetector):
 
     >>> for x, y in datasets.CreditCard().take(2500):
     ...     score = model.score_one(x)
+    ...     is_anomaly = model.classify(score)
     ...     model = model.learn_one(x)
-    ...     auc = auc.update(y, score)
+    ...     auc = auc.update(y, is_anomaly)
 
     >>> auc
-    ROCAUC: 74.74%
+    ROCAUC: 74.68%
 
     """
 
     def __init__(
         self,
         nu=0.1,
-        optimizer: optim.Optimizer = None,
-        intercept_lr: typing.Union[optim.schedulers.Scheduler, float] = 0.01,
+        optimizer: optim.base.Optimizer = None,
+        intercept_lr: typing.Union[optim.base.Scheduler, float] = 0.01,
         clip_gradient=1e12,
-        initializer: optim.initializers.Initializer = None,
+        initializer: optim.base.Initializer = None,
     ):
         super().__init__(
             optimizer=optim.SGD(0.01) if optimizer is None else optimizer,

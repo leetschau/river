@@ -12,7 +12,7 @@ __all__ = [
 ]
 
 
-class MutualInfo(metrics.MultiClassMetric):
+class MutualInfo(metrics.base.MultiClassMetric):
     r"""Mutual Information between two clusterings.
 
     The Mutual Information [^1] is a measure of the similarity between two labels of
@@ -105,7 +105,7 @@ class MutualInfo(metrics.MultiClassMetric):
         return mutual_info_score
 
 
-class NormalizedMutualInfo(metrics.MultiClassMetric):
+class NormalizedMutualInfo(metrics.base.MultiClassMetric):
     r"""Normalized Mutual Information between two clusterings.
 
     Normalized Mutual Information (NMI) is a normalized version of the Mutual Information (MI) score
@@ -182,9 +182,9 @@ class NormalizedMutualInfo(metrics.MultiClassMetric):
             )
         self.average_method = average_method
         if average_method == self._AVERAGE_MIN:
-            self._generalized_average = _average_min
+            self._generalized_average = min
         elif average_method == self._AVERAGE_MAX:
-            self._generalized_average = _average_max
+            self._generalized_average = max
         elif average_method == self._AVERAGE_GEOMETRIC:
             self._generalized_average = _average_geometric
         else:  # average_method == self._AVERAGE_ARITHMETIC
@@ -214,7 +214,7 @@ class NormalizedMutualInfo(metrics.MultiClassMetric):
         return mutual_info_score / normalizer
 
 
-class AdjustedMutualInfo(metrics.MultiClassMetric):
+class AdjustedMutualInfo(metrics.base.MultiClassMetric):
     r"""Adjusted Mutual Information between two clusterings.
 
     Adjusted Mutual Information (AMI) is an adjustment of the Mutual Information score
@@ -297,9 +297,9 @@ class AdjustedMutualInfo(metrics.MultiClassMetric):
             )
         self.average_method = average_method
         if average_method == self._AVERAGE_MIN:
-            self._generalized_average = _average_min
+            self._generalized_average = min
         elif average_method == self._AVERAGE_MAX:
-            self._generalized_average = _average_max
+            self._generalized_average = max
         elif average_method == self._AVERAGE_GEOMETRIC:
             self._generalized_average = _average_geometric
         else:  # average_method == self._AVERAGE_ARITHMETIC
@@ -354,14 +354,6 @@ def _entropy(cm, y_true):
         if i in values and values[i] > 0:
             entropy -= (values[i] / n_samples) * (np.log(values[i]) - np.log(n_samples))
     return entropy
-
-
-def _average_min(u, v):
-    return min(u, v)
-
-
-def _average_max(u, v):
-    return max(u, v)
 
 
 def _average_geometric(u, v):

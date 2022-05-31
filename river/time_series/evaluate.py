@@ -2,11 +2,7 @@ import collections
 import numbers
 from typing import Iterable, Iterator, Optional, Tuple
 
-from river.base.typing import Dataset
-from river.metrics import RegressionMetric
-
-from .base import Forecaster
-from .metrics import HorizonMetric
+from river import base, metrics, time_series
 
 TimeSeries = Iterator[
     Tuple[
@@ -18,7 +14,7 @@ TimeSeries = Iterator[
 ]
 
 
-def _iter_with_horizon(dataset: Dataset, horizon: int) -> TimeSeries:
+def _iter_with_horizon(dataset: base.typing.Dataset, horizon: int) -> TimeSeries:
     """
 
     Examples
@@ -75,17 +71,40 @@ def _iter_with_horizon(dataset: Dataset, horizon: int) -> TimeSeries:
         yield x_now, y_now, x_horizon, y_horizon
 
 
-def _evaluate(
-    dataset: Dataset,
-    model: Forecaster,
-    metric: RegressionMetric,
+def iter_evaluate(
+    dataset: base.typing.Dataset,
+    model: time_series.base.Forecaster,
+    metric: metrics.base.RegressionMetric,
     horizon: int,
-    grace_period: int,
-) -> HorizonMetric:
+    grace_period: int = None,
+):
+    """Evaluates the performance of a forecaster on a time series dataset and yields results.
 
-    horizon_metric = HorizonMetric(metric)
+    This does exactly the same as `evaluate.progressive_val_score`. The only difference is that
+    this function returns an iterator, yielding results at every step. This can be useful if you
+    want to have control over what you do with the results. For instance, you might want to plot
+    the results.
+
+    Parameters
+    ----------
+    dataset
+        A sequential time series.
+    model
+        A forecaster.
+    metric
+        A regression metric.
+    horizon
+    grace_period
+        Initial period during which the metric is not updated. This is to fairly evaluate models
+        which need a warming up period to start producing meaningful forecasts. The value of this
+        parameter is equal to the horizon by default.
+
+    """
+
+    horizon_metric = time_series.HorizonMetric(metric)
     steps = _iter_with_horizon(dataset, horizon)
 
+    grace_period = horizon if grace_period is None else grace_period
     for _ in range(grace_period):
         x, y, x_horizon, y_horizon = next(steps)
         model.learn_one(y=y, x=x)
@@ -94,16 +113,16 @@ def _evaluate(
         y_pred = model.forecast(horizon, xs=x_horizon)
         horizon_metric.update(y_horizon, y_pred)
         model.learn_one(y=y, x=x)
-        yield y_pred, horizon_metric
+        yield x, y, y_pred, horizon_metric
 
 
 def evaluate(
-    dataset: Dataset,
-    model: Forecaster,
-    metric: RegressionMetric,
+    dataset: base.typing.Dataset,
+    model: time_series.base.Forecaster,
+    metric: metrics.base.RegressionMetric,
     horizon: int,
-    grace_period=1,
-) -> HorizonMetric:
+    grace_period: int = None,
+) -> "time_series.HorizonMetric":
     """Evaluates the performance of a forecaster on a time series dataset.
 
     To understand why this method is useful, it's important to understand the difference between
@@ -127,14 +146,14 @@ def evaluate(
     horizon
     grace_period
         Initial period during which the metric is not updated. This is to fairly evaluate models
-        which need a warming up period to start producing meaningful forecasts. The first forecast
-        is skipped by default.
+        which need a warming up period to start producing meaningful forecasts. The value of this
+        parameter is equal to the horizon by default.
 
     """
 
     horizon_metric = None
-    steps = _evaluate(dataset, model, metric, horizon, grace_period)
-    for _, horizon_metric in steps:
+    steps = iter_evaluate(dataset, model, metric, horizon, grace_period)
+    for *_, horizon_metric in steps:
         pass
 
     return horizon_metric

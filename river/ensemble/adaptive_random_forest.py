@@ -35,7 +35,9 @@ class BaseForest(base.Ensemble):
         lambda_value: int,
         drift_detector: typing.Optional[base.DriftDetector],
         warning_detector: typing.Optional[base.DriftDetector],
-        metric: typing.Union[metrics.MultiClassMetric, metrics.RegressionMetric],
+        metric: typing.Union[
+            metrics.base.MultiClassMetric, metrics.base.RegressionMetric
+        ],
         disable_weighted_vote,
         seed,
     ):
@@ -68,8 +70,8 @@ class BaseForest(base.Ensemble):
     def learn_one(self, x: dict, y: base.typing.Target, **kwargs):
         self._n_samples_seen += 1
 
-        if not self:
-            self._init_ensemble(list(x.keys()))
+        if len(self) == 0:
+            self._init_ensemble(sorted(x.keys()))
 
         for model in self:
             # Get prediction for instance
@@ -89,13 +91,10 @@ class BaseForest(base.Ensemble):
     def _init_ensemble(self, features: list):
         self._set_max_features(len(features))
 
-        # Generate a different random seed per tree
-        seeds = [self._rng.randint(0, int(1e15)) for _ in range(self.n_models)]
-
         self.data = [
             self._base_member_class(
                 index_original=i,
-                model=self._new_base_model(seed=seeds[i]),
+                model=self._new_base_model(),
                 created_on=self._n_samples_seen,
                 drift_detector=self.drift_detector,
                 warning_detector=self.warning_detector,
@@ -106,7 +105,7 @@ class BaseForest(base.Ensemble):
         ]
 
     @abc.abstractmethod
-    def _new_base_model(self, seed: int):
+    def _new_base_model(self):
         raise NotImplementedError
 
     def _set_max_features(self, n_features):
@@ -165,12 +164,12 @@ class BaseTreeClassifier(tree.HoeffdingTreeClassifier):
         nominal_attributes: list = None,
         splitter: Splitter = None,
         binary_split: bool = False,
-        max_size: int = 100,
+        max_size: float = 100.0,
         memory_estimate_period: int = 1000000,
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
         merit_preprune: bool = True,
-        seed: int = None,
+        rng: random.Random = None,
     ):
         super().__init__(
             grace_period=grace_period,
@@ -191,8 +190,7 @@ class BaseTreeClassifier(tree.HoeffdingTreeClassifier):
         )
 
         self.max_features = max_features
-        self.seed = seed
-        self._rng = random.Random(self.seed)
+        self.rng = rng
 
     def _new_leaf(self, initial_stats=None, parent=None):
         if initial_stats is None:
@@ -203,16 +201,13 @@ class BaseTreeClassifier(tree.HoeffdingTreeClassifier):
         else:
             depth = parent.depth + 1
 
-        # Generate a random seed for the new learning node
-        seed = self._rng.randint(0, int(1e15))
-
         if self._leaf_prediction == self._MAJORITY_CLASS:
             return RandomLeafMajorityClass(
                 initial_stats,
                 depth,
                 self.splitter,
                 self.max_features,
-                seed,
+                self.rng,
             )
         elif self._leaf_prediction == self._NAIVE_BAYES:
             return RandomLeafNaiveBayes(
@@ -220,7 +215,7 @@ class BaseTreeClassifier(tree.HoeffdingTreeClassifier):
                 depth,
                 self.splitter,
                 self.max_features,
-                seed,
+                self.rng,
             )
         else:  # NAIVE BAYES ADAPTIVE (default)
             return RandomLeafNaiveBayesAdaptive(
@@ -228,13 +223,13 @@ class BaseTreeClassifier(tree.HoeffdingTreeClassifier):
                 depth,
                 self.splitter,
                 self.max_features,
-                seed,
+                self.rng,
             )
 
     def new_instance(self):
         new_instance = self.clone()
         # Use existing rng to enforce a different model
-        new_instance._rng = self._rng
+        new_instance.rng = self.rng
         return new_instance
 
 
@@ -262,12 +257,12 @@ class BaseTreeRegressor(tree.HoeffdingTreeRegressor):
         splitter: Splitter = None,
         min_samples_split: int = 5,
         binary_split: bool = False,
-        max_size: int = 100,
+        max_size: float = 100.0,
         memory_estimate_period: int = 1000000,
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
         merit_preprune: bool = True,
-        seed: int = None,
+        rng: random.Random = None,
     ):
         super().__init__(
             grace_period=grace_period,
@@ -289,8 +284,7 @@ class BaseTreeRegressor(tree.HoeffdingTreeRegressor):
         )
 
         self.max_features = max_features
-        self.seed = seed
-        self._rng = random.Random(self.seed)
+        self.rng = rng
 
     def _new_leaf(self, initial_stats=None, parent=None):  # noqa
         """Create a new learning node.
@@ -302,9 +296,6 @@ class BaseTreeRegressor(tree.HoeffdingTreeRegressor):
             depth = parent.depth + 1
         else:
             depth = 0
-
-        # Generate a random seed for the new learning node
-        seed = self._rng.randint(0, int(1e15))
 
         leaf_model = None
         if self.leaf_prediction in {self._MODEL, self._ADAPTIVE}:
@@ -322,7 +313,7 @@ class BaseTreeRegressor(tree.HoeffdingTreeRegressor):
                 depth,
                 self.splitter,
                 self.max_features,
-                seed,
+                self.rng,
             )
         elif self.leaf_prediction == self._MODEL:
             return RandomLeafModel(
@@ -330,7 +321,7 @@ class BaseTreeRegressor(tree.HoeffdingTreeRegressor):
                 depth,
                 self.splitter,
                 self.max_features,
-                seed,
+                self.rng,
                 leaf_model=leaf_model,
             )
         else:  # adaptive learning node
@@ -339,7 +330,7 @@ class BaseTreeRegressor(tree.HoeffdingTreeRegressor):
                 depth,
                 self.splitter,
                 self.max_features,
-                seed,
+                self.rng,
                 leaf_model=leaf_model,
             )
             if parent is not None and isinstance(parent, RandomLeafAdaptive):
@@ -351,7 +342,7 @@ class BaseTreeRegressor(tree.HoeffdingTreeRegressor):
     def new_instance(self):
         new_instance = self.clone()
         # Use existing rng to enforce a different model
-        new_instance._rng = self._rng
+        new_instance.rng = self.rng
         return new_instance
 
 
@@ -447,20 +438,20 @@ class AdaptiveRandomForestClassifier(BaseForest, base.Classifier):
 
     Examples
     --------
-    >>> from river import synth
     >>> from river import ensemble
     >>> from river import evaluate
     >>> from river import metrics
+    >>> from river import synth
 
     >>> dataset = synth.ConceptDriftStream(seed=42, position=500,
     ...                                    width=40).take(1000)
 
-    >>> model = ensemble.AdaptiveRandomForestClassifier(seed=8)
+    >>> model = ensemble.AdaptiveRandomForestClassifier(seed=8, leaf_prediction="mc")
 
     >>> metric = metrics.Accuracy()
 
     >>> evaluate.progressive_val_score(dataset, model, metric)
-    Accuracy: 74.17%
+    Accuracy: 76.68%
 
     References
     ----------
@@ -476,7 +467,7 @@ class AdaptiveRandomForestClassifier(BaseForest, base.Classifier):
         n_models: int = 10,
         max_features: typing.Union[bool, str, int] = "sqrt",
         lambda_value: int = 6,
-        metric: metrics.MultiClassMetric = metrics.Accuracy(),
+        metric: metrics.base.MultiClassMetric = metrics.Accuracy(),
         disable_weighted_vote=False,
         drift_detector: typing.Union[base.DriftDetector, None] = ADWIN(delta=0.001),
         warning_detector: typing.Union[base.DriftDetector, None] = ADWIN(delta=0.01),
@@ -491,7 +482,7 @@ class AdaptiveRandomForestClassifier(BaseForest, base.Classifier):
         nominal_attributes: list = None,
         splitter: Splitter = None,
         binary_split: bool = False,
-        max_size: int = 32,
+        max_size: float = 100.0,
         memory_estimate_period: int = 2_000_000,
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
@@ -536,11 +527,11 @@ class AdaptiveRandomForestClassifier(BaseForest, base.Classifier):
 
         y_pred = collections.Counter()
 
-        if not self.models:
-            self._init_ensemble(features=list(x.keys()))
+        if len(self) == 0:
+            self._init_ensemble(sorted(x.keys()))
             return y_pred
 
-        for model in self.models:
+        for model in self:
             y_proba_temp = model.predict_proba_one(x)
             metric_value = model.metric.get()
             if not self.disable_weighted_vote and metric_value > 0.0:
@@ -554,7 +545,7 @@ class AdaptiveRandomForestClassifier(BaseForest, base.Classifier):
             return {label: proba / total for label, proba in y_pred.items()}
         return y_pred
 
-    def _new_base_model(self, seed: int):
+    def _new_base_model(self):
         return BaseTreeClassifier(
             max_features=self.max_features,
             grace_period=self.grace_period,
@@ -572,7 +563,7 @@ class AdaptiveRandomForestClassifier(BaseForest, base.Classifier):
             stop_mem_management=self.stop_mem_management,
             remove_poor_attrs=self.remove_poor_attrs,
             merit_preprune=self.merit_preprune,
-            seed=seed,
+            rng=self._rng,
         )
 
 
@@ -713,7 +704,7 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
     >>> metric = metrics.MAE()
 
     >>> evaluate.progressive_val_score(dataset, model, metric)
-    MAE: 0.994917
+    MAE: 1.134919
 
     """
 
@@ -728,7 +719,7 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
         max_features="sqrt",
         aggregation_method: str = "median",
         lambda_value: int = 6,
-        metric: metrics.RegressionMetric = metrics.MSE(),
+        metric: metrics.base.RegressionMetric = metrics.MSE(),
         disable_weighted_vote=True,
         drift_detector: base.DriftDetector = ADWIN(0.001),
         warning_detector: base.DriftDetector = ADWIN(0.01),
@@ -744,7 +735,7 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
         splitter: Splitter = None,
         min_samples_split: int = 5,
         binary_split: bool = False,
-        max_size: int = 500,
+        max_size: float = 500.0,
         memory_estimate_period: int = 2_000_000,
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
@@ -793,8 +784,8 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
 
     def predict_one(self, x: dict) -> base.typing.RegTarget:
 
-        if not self.models:
-            self._init_ensemble(features=list(x.keys()))
+        if len(self) == 0:
+            self._init_ensemble(sorted(x.keys()))
             return 0.0
 
         y_pred = np.zeros(self.n_models)
@@ -802,7 +793,7 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
         if not self.disable_weighted_vote and self.aggregation_method != self._MEDIAN:
             weights = np.zeros(self.n_models)
             sum_weights = 0.0
-            for idx, model in enumerate(self.models):
+            for idx, model in enumerate(self):
                 y_pred[idx] = model.predict_one(x)
                 weights[idx] = model.metric.get()
                 sum_weights += weights[idx]
@@ -814,7 +805,7 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
                 weights /= weights.sum()
                 y_pred *= weights
         else:
-            for idx, model in enumerate(self.models):
+            for idx, model in enumerate(self):
                 y_pred[idx] = model.predict_one(x)
 
         if self.aggregation_method == self._MEAN:
@@ -824,7 +815,7 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
 
         return y_pred
 
-    def _new_base_model(self, seed: int):
+    def _new_base_model(self):
         return BaseTreeRegressor(
             max_features=self.max_features,
             grace_period=self.grace_period,
@@ -842,7 +833,7 @@ class AdaptiveRandomForestRegressor(BaseForest, base.Regressor):
             stop_mem_management=self.stop_mem_management,
             remove_poor_attrs=self.remove_poor_attrs,
             merit_preprune=self.merit_preprune,
-            seed=seed,
+            rng=self._rng,
         )
 
     @property
@@ -890,16 +881,15 @@ class BaseForestMember:
         drift_detector: base.DriftDetector,
         warning_detector: base.DriftDetector,
         is_background_learner,
-        metric: typing.Union[metrics.MultiClassMetric, metrics.RegressionMetric],
+        metric: typing.Union[
+            metrics.base.MultiClassMetric, metrics.base.RegressionMetric
+        ],
     ):
         self.index_original = index_original
-        self.model = model.clone()
+        self.model = model
         self.created_on = created_on
         self.is_background_learner = is_background_learner
         self.metric = metric.clone()
-        # Keep a copy of the original metric for background learners or reset
-        self._original_metric = copy.deepcopy(metric)
-
         self.background_learner = None
 
         # Drift and warning detection
@@ -934,12 +924,10 @@ class BaseForestMember:
             self.background_learner = None
         else:
             # Reset model
-            self.model = self.model.clone()
-            self.metric = copy.deepcopy(self._original_metric)
+            self.model = self.model.new_instance()
+            self.metric = self.metric.clone()
             self.created_on = n_samples_seen
             self.drift_detector = self.drift_detector.clone()
-        # Make sure that the metric is not initialized, e.g. when creating background learners.
-        self.metric = self.metric.clone()
 
     def learn_one(
         self, x: dict, y: base.typing.Target, *, sample_weight: int, n_samples_seen: int
@@ -1007,7 +995,7 @@ class ForestMemberClassifier(BaseForestMember, base.Classifier):
         drift_detector: base.DriftDetector,
         warning_detector: base.DriftDetector,
         is_background_learner,
-        metric: metrics.MultiClassMetric,
+        metric: metrics.base.MultiClassMetric,
     ):
         super().__init__(
             index_original=index_original,
@@ -1042,7 +1030,7 @@ class ForestMemberRegressor(BaseForestMember, base.Regressor):
         drift_detector: base.DriftDetector,
         warning_detector: base.DriftDetector,
         is_background_learner,
-        metric: metrics.RegressionMetric,
+        metric: metrics.base.RegressionMetric,
     ):
         super().__init__(
             index_original=index_original,

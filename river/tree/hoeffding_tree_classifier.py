@@ -129,7 +129,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         nominal_attributes: list = None,
         splitter: Splitter = None,
         binary_split: bool = False,
-        max_size: int = 100,
+        max_size: float = 100.0,
         memory_estimate_period: int = 1000000,
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
@@ -404,7 +404,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         return self
 
     def predict_proba_one(self, x):
-        proba = {c: 0.0 for c in self.classes}
+        proba = {c: 0.0 for c in sorted(self.classes)}
         if self._root is not None:
             if isinstance(self._root, DTBranch):
                 leaf = self._root.traverse(x, until_leaf=True)
